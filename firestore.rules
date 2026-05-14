@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 0.1 Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() { 
+      return isSignedIn() && 
+             (request.auth.token.email == 'td4156828@gmail.com' || 
+              request.auth.token.email.matches('(?i)td4156828@gmail.com')); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // 1. Services
+    match /services/{serviceId} {
+      function isValidService(data) {
+        return data.keys().hasAll(['title', 'desc', 'iconName', 'color', 'order'])
+          && data.keys().size() == 5
+          && data.title is string && data.title.size() >= 2 && data.title.size() <= 100
+          && data.desc is string && data.desc.size() >= 5 && data.desc.size() <= 500
+          && data.iconName is string && data.iconName.size() <= 50
+          && data.color is string && data.color.size() <= 100
+          && data.order is number;
+      }
+
+      allow list, get: if true;
+      allow create: if isAdmin() && isValidId(serviceId) && isValidService(incoming());
+      allow update: if isAdmin() && isValidService(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 2. FAQs
+    match /faqs/{faqId} {
+      function isValidFAQ(data) {
+        return data.keys().hasAll(['q', 'a', 'order'])
+          && data.keys().size() == 3
+          && data.q is string && data.q.size() >= 5 && data.q.size() <= 300
+          && data.a is string && data.a.size() >= 5 && data.a.size() <= 1000
+          && data.order is number;
+      }
+
+      allow list, get: if true;
+      allow create: if isAdmin() && isValidId(faqId) && isValidFAQ(incoming());
+      allow update: if isAdmin() && isValidFAQ(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 3. Inquiries
+    match /inquiries/{inquiryId} {
+      function isValidInquiry(data) {
+        return data.keys().hasAll(['name', 'phone', 'message', 'createdAt'])
+          && data.keys().size() == 4
+          && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+          && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 20
+          && data.message is string && data.message.size() >= 5 && data.message.size() <= 1000
+          && data.createdAt == request.time;
+      }
+
+      allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
+      allow list, get, delete: if isAdmin();
+    }
+
+    // 4. Config
+    match /config/{configId} {
+      allow list, get: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

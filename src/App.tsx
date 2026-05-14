@@ -13,12 +13,132 @@ import {
   Mail,
   CheckCircle2,
   Hammer,
-  MessageSquare
+  MessageSquare,
+  LogIn,
+  LogOut,
+  Edit2,
+  Save,
+  Trash2,
+  Plus,
+  ArrowRight
 } from "lucide-react";
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut,
+  User 
+} from "firebase/auth";
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  doc, 
+  serverTimestamp,
+  onSnapshot,
+  updateDoc,
+  deleteDoc,
+  writeBatch
+} from "firebase/firestore";
+import { auth, db } from "./lib/firebase";
+
+// --- Types ---
+interface Service {
+  id?: string;
+  title: string;
+  desc: string;
+  iconName: string;
+  color: string;
+  order: number;
+}
+
+interface FAQItem {
+  id?: string;
+  q: string;
+  a: string;
+  order: number;
+}
+
+interface Inquiry {
+  id: string;
+  name: string;
+  phone: string;
+  message: string;
+  createdAt: any;
+}
+
+interface Settings {
+  phone: string;
+  email: string;
+  whatsapp: string;
+  location: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  owner1: string;
+  owner2: string;
+  logoText1: string;
+  logoText2: string;
+}
+
+// --- Error Handler ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// --- Helper ---
+const getIcon = (name: string) => {
+  switch (name) {
+    case "Zap": return <Zap className="w-6 h-6" />;
+    case "Lightbulb": return <Lightbulb className="w-6 h-6" />;
+    case "Wrench": return <Wrench className="w-6 h-6" />;
+    case "ShieldCheck": return <ShieldCheck className="w-6 h-6" />;
+    case "CheckCircle2": return <CheckCircle2 className="w-6 h-6" />;
+    case "MapPin": return <MapPin className="w-6 h-6" />;
+    default: return <Zap className="w-6 h-6" />;
+  }
+};
 
 // --- Components ---
 
 const Logo = ({ className = "", dark = false, minimal = false, size = "md" }: { className?: string; dark?: boolean; minimal?: boolean; size?: "sm" | "md" | "lg" }) => {
+    const [logo, setLogo] = useState({ t1: "RT", t2: "VOLTCARE" });
+
+    useEffect(() => {
+        const unsub = onSnapshot(doc(db, "config", "general"), (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                setLogo({ 
+                    t1: data.logoText1 || "RT", 
+                    t2: data.logoText2 || "VOLTCARE" 
+                });
+            }
+        });
+        return () => unsub();
+    }, []);
+
     const sizeClasses = {
         sm: "w-8 h-8",
         md: "w-12 h-12",
@@ -53,32 +173,15 @@ const Logo = ({ className = "", dark = false, minimal = false, size = "md" }: { 
                         <path d="M-3 -8 L-3 -15 M3 -8 L3 -15" stroke="#EAB308" strokeWidth="4" strokeLinecap="round" />
                     </g>
     
-                    {/* RT Main Typography */}
-                    <g transform="translate(50, 58)">
-                        {/* Stylized R */}
-                        <path 
-                            d="M-28 0 L-28 -28 L-8 -28 C2 -28, 7 -22, 7 -14 C7 -6, 2 0, -8 0 L-20 0 L-5 12" 
-                            fill={dark ? "#FFFFFF" : "#111827"} 
-                            className="transition-colors duration-300"
-                        />
-                        {/* Stylized T */}
-                        <path 
-                            d="M2 -28 L28 -28 M15 -28 L15 8" 
-                            fill="none" 
-                            stroke="#EAB308" 
-                            strokeWidth="10" 
-                            strokeLinecap="butt"
-                        />
-                        
-                        {/* Central Lightning Strike */}
+                    {/* Lightning Strike */}
+                    <g transform="translate(50, 50)">
                         <path 
                             d="M-8 -24 L8 2 L-5 6 L12 28" 
                             fill="none" 
                             stroke="#EAB308" 
-                            strokeWidth="5" 
+                            strokeWidth="8" 
                             strokeLinecap="round" 
                             strokeLinejoin="round"
-                            className="opacity-90"
                         >
                             <animate attributeName="opacity" values="1;0.7;1" dur="2s" repeatCount="indefinite" />
                         </path>
@@ -96,7 +199,7 @@ const Logo = ({ className = "", dark = false, minimal = false, size = "md" }: { 
             {!minimal && (
                 <div className="flex flex-col translate-y-0.5">
                     <span className={`${textClasses[size]} font-black italic tracking-tighter leading-none ${dark ? "text-white" : "text-gray-900"}`}>
-                        RT <span className="text-yellow-500">VOLTCARE</span>
+                        {logo.t1} <span className="text-yellow-500">{logo.t2}</span>
                     </span>
                 </div>
             )}
@@ -106,6 +209,14 @@ const Logo = ({ className = "", dark = false, minimal = false, size = "md" }: { 
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [phone, setPhone] = useState("8013026363");
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (doc) => {
+      if (doc.exists()) setPhone(doc.data().phone || "8013026363");
+    });
+    return () => unsub();
+  }, []);
 
   const navLinks = [
     { name: "Home", href: "#" },
@@ -131,11 +242,11 @@ const Navbar = () => {
               </a>
             ))}
             <a 
-              href="tel:+918013026363" 
+              href={`tel:+91${phone}`} 
               className="px-6 py-2.5 bg-yellow-400 text-gray-900 rounded-full font-black hover:bg-yellow-500 transition-all flex items-center gap-2 shadow-lg shadow-yellow-200/50 uppercase text-xs tracking-wider"
             >
               <PhoneCall className="w-4 h-4" />
-              8013026363
+              {phone}
             </a>
           </div>
 
@@ -166,11 +277,11 @@ const Navbar = () => {
               </a>
             ))}
             <a 
-              href="tel:+918013026363" 
+              href={`tel:+91${phone}`} 
               className="mx-4 mt-2 px-6 py-3 bg-yellow-400 text-gray-900 rounded-xl font-black text-center flex items-center justify-center gap-2 shadow-lg shadow-yellow-100"
             >
               <PhoneCall className="w-5 h-5" />
-              8013026363
+              {phone}
             </a>
           </div>
         </motion.div>
@@ -180,6 +291,24 @@ const Navbar = () => {
 };
 
 const Hero = () => {
+  const [config, setConfig] = useState<Settings>({
+    phone: "8013026363",
+    email: "td4156828@gmail.com",
+    whatsapp: "8013026363",
+    location: "Barasat / Madhyamgram, N24P",
+    heroTitle: "RT VoltCare",
+    heroSubtitle: "Providing fast, reliable, and affordable electrical services",
+    owner1: "Tanmoy Debnath",
+    owner2: "Rahul Mahato"
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (doc) => {
+      if (doc.exists()) setConfig(prev => ({ ...prev, ...doc.data() }));
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-[#0a0f1d]">
       {/* Lightning Effect Background */}
@@ -208,28 +337,32 @@ const Hero = () => {
             </motion.div>
 
             <h1 className="text-6xl lg:text-9xl font-black text-white leading-none mb-4 italic tracking-tighter">
-              RT <span className="text-yellow-400 drop-shadow-[0_0_25px_rgba(250,204,21,0.4)]">VoltCare</span>
+              {config.heroTitle.split(' ')[0]} <span className="text-yellow-400 drop-shadow-[0_0_25px_rgba(250,204,21,0.4)]">{config.heroTitle.split(' ').slice(1).join(' ')}</span>
             </h1>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-8 text-gray-300 font-bold uppercase tracking-widest text-sm">
-               <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                  <Wrench className="w-4 h-4 text-yellow-400" /> Tanmoy Debnath
-               </div>
-               <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                  <Wrench className="w-4 h-4 text-yellow-400" /> Rahul Mahato
-               </div>
+               {config.owner1 && (
+                 <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                    <Wrench className="w-4 h-4 text-yellow-400" /> {config.owner1}
+                 </div>
+               )}
+               {config.owner2 && (
+                 <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                    <Wrench className="w-4 h-4 text-yellow-400" /> {config.owner2}
+                 </div>
+               )}
             </div>
 
             <p className="text-xl text-blue-100/70 mb-10 max-w-xl mx-auto lg:mx-0 font-medium">
-               Providing fast, reliable, and affordable electrical services in Barasat, Madhyamgram, and surrounding areas.
+               {config.heroSubtitle} in {config.location.split(',')[0]} and surrounding areas.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-12">
-              <a href="tel:+918013026363" className="group px-8 py-5 bg-yellow-400 text-gray-900 rounded-xl font-black text-lg hover:bg-yellow-500 transition-all text-center flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(250,204,21,0.3)]">
-                CALL 8013026363
+              <a href={`tel:+91${config.phone}`} className="group px-8 py-5 bg-yellow-400 text-gray-900 rounded-xl font-black text-lg hover:bg-yellow-500 transition-all text-center flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(250,204,21,0.3)]">
+                CALL {config.phone}
                 <PhoneCall className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </a>
-              <a href="https://wa.me/918013026363" target="_blank" rel="noreferrer" className="px-8 py-5 bg-transparent text-white border-2 border-white/20 rounded-xl font-bold text-lg hover:bg-white hover:text-gray-900 transition-all text-center flex items-center justify-center gap-3">
+              <a href={`https://wa.me/91${config.whatsapp}`} target="_blank" rel="noreferrer" className="px-8 py-5 bg-transparent text-white border-2 border-white/20 rounded-xl font-bold text-lg hover:bg-white hover:text-gray-900 transition-all text-center flex items-center justify-center gap-3">
                 WhatsApp Us
                 <MessageSquare className="w-5 h-5 text-yellow-400" />
               </a>
@@ -238,7 +371,7 @@ const Hero = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2">
                  <MapPin className="w-5 h-5 text-yellow-400" />
-                 <span className="text-gray-400 font-bold text-sm">North 24 Parganas</span>
+                 <span className="text-gray-400 font-bold text-sm">{config.location}</span>
               </div>
               <div className="hidden sm:block w-1.5 h-1.5 bg-yellow-500 rounded-full" />
               <div className="text-yellow-400 font-black text-sm uppercase tracking-[0.2em]">FAST • RELIABLE • AFFORDABLE</div>
@@ -304,13 +437,25 @@ const Process = () => {
 };
 
 const FAQ = () => {
-    const faqs = [
-        { q: "How much is the service charge?", a: "Our service charge varies depending on the type of work. However, we always ensure competitive and affordable pricing." },
-        { q: "Can you come for emergency needs?", a: "Yes, we have a special team that works 24/7 just for emergency cases." },
-        { q: "Is there any guarantee after work?", a: "Of course! After every task, we offer a free service guarantee and follow-up checkup for a specific time." }
-    ];
-
+    const [faqs, setFaqs] = useState<FAQItem[]>([]);
     const [active, setActive] = useState<number | null>(null);
+
+    useEffect(() => {
+        const q = query(collection(db, "faqs"), orderBy("order", "asc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FAQItem));
+            if (data.length > 0) {
+                setFaqs(data);
+            } else {
+                setFaqs([
+                    { q: "How much is the service charge?", a: "Our service charge varies depending on the type of work. However, we always ensure competitive and affordable pricing.", order: 1 },
+                    { q: "Can you come for emergency needs?", a: "Yes, we have a special team that works 24/7 just for emergency cases.", order: 2 },
+                    { q: "Is there any guarantee after work?", a: "Of course! After every task, we offer a free service guarantee and follow-up checkup for a specific time.", order: 3 }
+                ]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     return (
         <section className="py-24 bg-gray-900 text-white">
@@ -318,7 +463,7 @@ const FAQ = () => {
                 <h2 className="text-4xl font-black text-center mb-16 underline decoration-amber-500 underline-offset-8 transition-all hover:decoration-amber-400 cursor-default">Frequently Asked Questions (FAQ)</h2>
                 <div className="space-y-4">
                     {faqs.map((faq, i) => (
-                        <div key={i} className="border border-white/10 rounded-2xl overflow-hidden bg-white/5 transition-all hover:bg-white/10">
+                        <div key={faq.id || i} className="border border-white/10 rounded-2xl overflow-hidden bg-white/5 transition-all hover:bg-white/10">
                             <button 
                                 onClick={() => setActive(active === i ? null : i)}
                                 className="w-full flex items-center justify-between p-6 text-left"
@@ -344,86 +489,101 @@ const FAQ = () => {
 };
 
 const Services = () => {
-  const services = [
-    {
-      title: "Switch Board Installation",
-      desc: "Complete installation and repair of all types of modern switch boards.",
-      icon: <Zap className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-400"
-    },
-    {
-      title: "MCB Box Setup",
-      desc: "Safe and standard MCB box setup to protect your home from short circuits.",
-      icon: <CheckCircle2 className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-500"
-    },
-    {
-      title: "House Wiring",
-      desc: "Premium house wiring for new buildings and expert repairs for old ones.",
-      icon: <MapPin className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-600"
-    },
-    {
-      title: "Fault Detection",
-      desc: "Quickly finding and fixing electrical leaks and hidden faults.",
-      icon: <CheckCircle2 className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-400"
-    },
-    {
-      title: "Light & Fan Installation",
-      desc: "Perfect installation of all kinds of decorative lights and high-speed fans.",
-      icon: <Lightbulb className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-500"
-    },
-    {
-      title: "Socket Replacement",
-      desc: "Replacing old or burnt sockets and switches with high-quality parts.",
-      icon: <ShieldCheck className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-600"
-    },
-    {
-      title: "Water Pump Connection",
-      desc: "Professional wiring and connection for domestic and submersible pumps.",
-      icon: <Wrench className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-400"
-    },
-    {
-      title: "Inverter Line Connection",
-      desc: "Expert setup for inverters and battery lines for backup power.",
-      icon: <Zap className="w-6 h-6" />,
-      color: "bg-yellow-400/10 text-yellow-500"
-    }
-  ];
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, "services"), orderBy("order", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service))
+        .filter(s => s.title && s.desc); // Filter out empty/broken records
+
+      // Deduplicate by title to prevent mess
+      const unique: Service[] = [];
+      data.forEach(s => {
+        if (!unique.find(u => u.title.toLowerCase() === s.title.toLowerCase())) {
+          unique.push(s);
+        }
+      });
+
+      if (unique.length > 0) {
+        setServices(unique);
+      } else {
+        // High-quality default services if empty
+        setServices([
+          { title: "Smart Board Installation", desc: "Digital & Modern Switchboard setup with modular safety.", iconName: "Zap", color: "bg-yellow-400/10 text-yellow-500", order: 1 },
+          { title: "MCB & Safety Setup", desc: "Industrial standard circuit protection for your residence.", iconName: "ShieldCheck", color: "bg-blue-400/10 text-blue-500", order: 2 },
+          { title: "Premium House Wiring", desc: "Concealed or open wiring using fire-resistant wires.", iconName: "Zap", color: "bg-green-400/10 text-green-500", order: 3 },
+          { title: "Quick Fault Repair", desc: "Expert detection of hidden electrical leaks and short circuits.", iconName: "Wrench", color: "bg-red-400/10 text-red-500", order: 4 },
+          { title: "Designer Light Setup", desc: "Installation of Chandeliers, Profile Lights, and Accent lighting.", iconName: "Lightbulb", color: "bg-purple-400/10 text-purple-500", order: 5 },
+          { title: "Appliance Wiring", desc: "Dedicated heavy lines for AC, Geyser, and Water Pumps.", iconName: "Hammer", color: "bg-amber-400/10 text-amber-500", order: 6 },
+          { title: "Inverter Setup", desc: "Home backup system installation with load optimization.", iconName: "Zap", color: "bg-orange-400/10 text-orange-500", order: 7 },
+          { title: "Earthing Solutions", desc: "Proper house earthing to ensure equipment longevity.", iconName: "ShieldCheck", color: "bg-teal-400/10 text-teal-500", order: 8 }
+        ]);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <section id="services" className="py-24 bg-[#0a0f1d] border-y border-white/5 relative">
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-20" />
+    <section id="services" className="py-24 bg-[#0a0f1d] border-y border-white/5 relative overflow-hidden">
+      {/* Dynamic Background Elements */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-400/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400/5 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-black text-white mb-4 uppercase italic tracking-tighter">OUR <span className="text-yellow-400">SERVICES</span></h2>
-          <div className="w-24 h-2 bg-yellow-400 mx-auto rounded-full mb-6" />
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto font-bold uppercase tracking-widest leading-tight">
-            Fast • Reliable • Affordable Service
+        <div className="text-center mb-20">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            className="inline-block px-4 py-1.5 bg-yellow-400 text-gray-900 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 shadow-lg shadow-yellow-400/20"
+          >
+            Expert Electrical Solutions
+          </motion.div>
+          <h2 className="text-5xl md:text-7xl font-black text-white mb-6 uppercase italic tracking-tighter leading-none">
+            OUR <span className="text-yellow-400">SERVICES</span>
+          </h2>
+          <p className="text-lg text-gray-400 max-w-2xl mx-auto font-bold uppercase tracking-widest leading-tight opacity-70">
+            Professional • Reliable • 24/7 Support
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {services.map((s, i) => (
+          {loading ? (
+            Array(8).fill(0).map((_, i) => (
+              <div key={i} className="h-64 rounded-3xl bg-white/5 animate-pulse" />
+            ))
+          ) : services.map((s, i) => (
             <motion.div 
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
+              key={s.id || i}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="p-8 rounded-3xl bg-white/5 border border-white/10 hover:border-yellow-400 hover:bg-white/10 transition-all group flex flex-col items-center text-center shadow-xl"
+              transition={{ delay: i * 0.05, duration: 0.5 }}
+              viewport={{ once: true }}
+              className="p-8 rounded-[40px] bg-gradient-to-b from-white/10 to-transparent border border-white/10 hover:border-yellow-400/50 hover:bg-white/[0.12] transition-all duration-500 group relative flex flex-col items-center text-center overflow-hidden shadow-2xl"
             >
-              <div className={`w-16 h-16 ${s.color} rounded-full flex items-center justify-center mb-6 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all border border-yellow-400/20`}>
-                {s.icon}
+              {/* Card Glow Effect */}
+              <div className={`absolute -inset-20 ${s.color?.split(' ')[0]} opacity-0 group-hover:opacity-10 blur-3xl transition-opacity duration-700 -z-10`} />
+              
+              <div className={`w-20 h-20 ${s.color || "bg-yellow-400/10 text-yellow-400"} rounded-[2rem] flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 border border-white/5 relative z-10`}>
+                <div className="absolute inset-0 bg-white/10 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                {getIcon(s.iconName)}
               </div>
-              <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight">{s.title}</h3>
-              <p className="text-gray-400 text-sm font-medium leading-relaxed">
+              
+              <h3 className="text-2xl font-black text-white mb-4 uppercase tracking-tighter group-hover:text-yellow-400 transition-colors">{s.title}</h3>
+              <p className="text-gray-400 text-sm font-medium leading-relaxed mb-6 group-hover:text-gray-300 transition-colors">
                 {s.desc}
               </p>
+
+              <div className="mt-auto opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+                 <button className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-yellow-400 hover:text-yellow-300">
+                   Learn More <ArrowRight className="w-3 h-3" />
+                 </button>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -480,10 +640,43 @@ const WhyUs = () => {
 
 const ContactForm = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [config, setConfig] = useState<Settings>({
+    phone: "8013026363",
+    email: "td4156828@gmail.com",
+    whatsapp: "8013026363",
+    location: "Barasat / Madhyamgram, N24P"
+  });
 
-  const handleSubmit = (e: FormEvent) => {
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (doc) => {
+      if (doc.exists()) setConfig(prev => ({ ...prev, ...doc.data() }));
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setLoading(true);
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const name = formData.get("name") as string;
+    const phone = formData.get("phone") as string;
+    const message = formData.get("message") as string;
+
+    try {
+      await addDoc(collection(db, "inquiries"), {
+        name,
+        phone,
+        message,
+        createdAt: serverTimestamp()
+      });
+      setSubmitted(true);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "inquiries");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -504,7 +697,7 @@ const ContactForm = () => {
                 </div>
                 <div>
                   <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Main Call</div>
-                  <div className="font-black text-2xl tracking-tighter">8013026363</div>
+                  <div className="font-black text-2xl tracking-tighter">{config.phone}</div>
                 </div>
               </div>
               <div className="flex items-center gap-5">
@@ -513,7 +706,7 @@ const ContactForm = () => {
                 </div>
                 <div>
                   <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Email Address</div>
-                  <div className="font-black text-xl tracking-tighter">td4156828@gmail.com</div>
+                  <div className="font-black text-xl tracking-tighter truncate max-w-[200px]">{config.email}</div>
                 </div>
               </div>
               <div className="flex items-center gap-5">
@@ -522,7 +715,7 @@ const ContactForm = () => {
                 </div>
                 <div>
                   <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">WhatsApp</div>
-                  <a href="https://wa.me/918013026363" target="_blank" rel="noreferrer" className="font-black text-2xl tracking-tighter hover:text-gray-900 transition-colors">Click to Chat</a>
+                  <a href={`https://wa.me/91${config.whatsapp}`} target="_blank" rel="noreferrer" className="font-black text-2xl tracking-tighter hover:text-gray-900 transition-colors">Click to Chat</a>
                 </div>
               </div>
               <div className="flex items-center gap-5">
@@ -531,7 +724,7 @@ const ContactForm = () => {
                 </div>
                 <div>
                   <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Location</div>
-                  <div className="font-black text-lg leading-none uppercase tracking-tighter">Barasat / Madhyamgram, N24P</div>
+                  <div className="font-black text-lg leading-none uppercase tracking-tighter">{config.location}</div>
                 </div>
               </div>
             </div>
@@ -544,6 +737,7 @@ const ContactForm = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Full Name</label>
                   <input 
                     required
+                    name="name"
                     type="text" 
                     placeholder="Enter your name"
                     className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none text-lg font-medium"
@@ -553,6 +747,7 @@ const ContactForm = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Phone Number</label>
                   <input 
                     required
+                    name="phone"
                     type="tel" 
                     placeholder="Enter your phone number"
                     className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none text-lg font-medium"
@@ -562,12 +757,17 @@ const ContactForm = () => {
                   <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Work Details</label>
                   <textarea 
                     rows={4}
+                    name="message"
+                    required
                     placeholder="Describe your requirements..."
                     className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none resize-none text-lg font-medium"
                   ></textarea>
                 </div>
-                <button className="group w-full py-6 bg-gray-900 text-white rounded-2xl font-black text-xl hover:bg-amber-600 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95">
-                  Send Message
+                <button 
+                  disabled={loading}
+                  className="group w-full py-6 bg-gray-900 text-white rounded-2xl font-black text-xl hover:bg-amber-600 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? "Sending..." : "Send Message"}
                   <Zap className="w-6 h-6 group-hover:fill-current" />
                 </button>
               </form>
@@ -597,7 +797,18 @@ const ContactForm = () => {
   );
 };
 
-const Footer = () => {
+const Footer = ({ onAdminLogin }: { onAdminLogin: () => void }) => {
+  const [config, setConfig] = useState({
+    location: "Barasat, Madhyamgram, North 24 Parganas, WB."
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (doc) => {
+      if (doc.exists()) setConfig(prev => ({ ...prev, ...doc.data() }));
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <footer className="bg-[#050810] pt-20 pb-10 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -620,16 +831,21 @@ const Footer = () => {
            </div>
            <div>
               <h4 className="text-sm font-black text-yellow-400 mb-6 uppercase tracking-[0.3em]">Coverage</h4>
-              <p className="text-gray-500 font-bold uppercase text-xs tracking-widest leading-loose">
-                Barasat, Madhyamgram, <br />
-                North 24 Parganas, WB.
+              <p className="text-gray-500 font-bold uppercase text-xs tracking-widest leading-loose text-center md:text-left">
+                {config.location}
               </p>
            </div>
         </div>
-        <div className="pt-10 border-t border-white/5 text-center">
+        <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
             <p className="text-gray-600 text-[10px] font-black uppercase tracking-[0.4em]">
             © 2026 RT VOLTCARE. DESIGNED FOR POWER.
             </p>
+            <button 
+              onClick={onAdminLogin}
+              className="px-3 py-1 text-[8px] font-black uppercase tracking-widest text-gray-300 hover:text-white transition-all opacity-10 hover:opacity-100"
+            >
+              Admin Access
+            </button>
         </div>
       </div>
     </footer>
@@ -768,7 +984,7 @@ const LiveSupport = () => {
     );
 };
 
-const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
+const SplashScreen = ({ onComplete }: { onComplete: () => void; key?: string }) => {
     useEffect(() => {
         const timer = setTimeout(() => {
             onComplete();
@@ -856,35 +1072,244 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
     );
 };
 
+const AdminPanel = ({ user, onExit }: { user: User; onExit: () => void }) => {
+  const [activeTab, setActiveTab] = useState<"services" | "faqs" | "inquiries" | "settings">("inquiries");
+  const [services, setServices] = useState<Service[]>([]);
+  const [faqs, setFaqs] = useState<FAQItem[]>([]);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editingFaq, setEditingFaq] = useState<FAQItem | null>(null);
+  const isAdmin = user.email?.trim().toLowerCase() === "td4156828@gmail.com";
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    const unsS = onSnapshot(query(collection(db, "services"), orderBy("order", "asc")), (s) => 
+      setServices(s.docs.map(d => ({ id: d.id, ...d.data() } as Service)))
+    );
+    const unsF = onSnapshot(query(collection(db, "faqs"), orderBy("order", "asc")), (s) => 
+      setFaqs(s.docs.map(d => ({ id: d.id, ...d.data() } as FAQItem)))
+    );
+    const unsI = onSnapshot(query(collection(db, "inquiries"), orderBy("createdAt", "desc")), (s) => 
+      setInquiries(s.docs.map(d => ({ id: d.id, ...d.data() } as Inquiry)))
+    );
+    const unsSet = onSnapshot(doc(db, "config", "general"), (doc) => {
+      if (doc.exists()) setSettings(doc.data() as Settings);
+    });
+
+    return () => { unsS(); unsF(); unsI(); unsSet(); };
+  }, [isAdmin]);
+
+  const handleDelete = async (coll: string, id: string | undefined) => {
+    if (!id) return;
+    if (!window.confirm("Confirm Delete?")) return;
+    try {
+      await deleteDoc(doc(db, coll, id));
+    } catch (e) {
+      alert("Error deleting item.");
+    }
+  };
+
+  const handleSeed = async () => {
+    if (!window.confirm("Restore defaults and wipe existing?")) return;
+    try {
+      const snaps = await getDocs(collection(db, "services"));
+      await Promise.all(snaps.docs.map(d => deleteDoc(d.ref)));
+
+      const defaults = [
+        { title: "Smart Board Installation", desc: "Digital & Modern Switchboard setup with modular safety.", iconName: "Zap", color: "bg-yellow-400/10 text-yellow-500", order: 1 },
+        { title: "MCB & Safety Setup", desc: "Industrial standard circuit protection for your residence.", iconName: "ShieldCheck", color: "bg-blue-400/10 text-blue-500", order: 2 },
+        { title: "Premium House Wiring", desc: "Concealed or open wiring using fire-resistant wires.", iconName: "Zap", color: "bg-green-400/10 text-green-500", order: 3 },
+        { title: "Quick Fault Repair", desc: "Expert detection of hidden electrical leaks and short circuits.", iconName: "Wrench", color: "bg-red-400/10 text-red-500", order: 4 },
+        { title: "Designer Light Setup", desc: "Installation of Chandeliers, Profile Lights, and Accent lighting.", iconName: "Lightbulb", color: "bg-purple-400/10 text-purple-500", order: 5 },
+        { title: "Appliance Wiring", desc: "Dedicated heavy lines for AC, Geyser, and Water Pumps.", iconName: "Hammer", color: "bg-amber-400/10 text-amber-500", order: 6 },
+        { title: "Inverter Setup", desc: "Home backup system installation with load optimization.", iconName: "Zap", color: "bg-orange-400/10 text-orange-500", order: 7 },
+        { title: "Earthing Solutions", desc: "Proper house earthing to ensure equipment longevity.", iconName: "ShieldCheck", color: "bg-teal-400/10 text-teal-500", order: 8 }
+      ];
+
+      for (const d of defaults) {
+        await addDoc(collection(db, "services"), d);
+      }
+      alert("Services Restored!");
+    } catch (e) {
+      alert("Seed failed.");
+    }
+  };
+
+  if (!isAdmin) return <div className="p-20 text-center font-black">ACCESS DENIED - {user.email}</div>;
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <nav className="bg-gray-900 py-4 px-8 flex justify-between items-center text-white">
+         <div className="font-black uppercase italic text-xl">Admin <span className="text-yellow-400">VoltCare</span></div>
+         <button onClick={onExit} className="px-4 py-2 border border-white/20 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10">Exit Panel</button>
+      </nav>
+
+      <div className="flex-1 max-w-7xl mx-auto w-full p-8">
+         <div className="flex gap-4 mb-8">
+            {["inquiries", "services", "faqs", "settings"].map(t => (
+              <button 
+                key={t}
+                onClick={() => setActiveTab(t as any)}
+                className={`px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === t ? "bg-yellow-400 text-gray-900" : "bg-white text-gray-400 border border-gray-100"}`}
+              >
+                {t}
+              </button>
+            ))}
+         </div>
+
+         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
+           {activeTab === "inquiries" && (
+             <div className="space-y-4">
+                {inquiries.map(i => (
+                  <div key={i.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between">
+                    <div>
+                      <div className="font-black text-gray-900 mb-1">{i.name} • {i.phone}</div>
+                      <p className="text-gray-600">{i.message}</p>
+                    </div>
+                    <button onClick={() => handleDelete("inquiries", i.id)} className="text-red-500 p-2"><Trash2 className="w-5 h-5"/></button>
+                  </div>
+                ))}
+             </div>
+           )}
+
+           {activeTab === "services" && (
+             <div>
+                <div className="flex justify-end mb-6">
+                  <button onClick={handleSeed} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest">Restore All Clean</button>
+                </div>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const data = {
+                    title: fd.get("title") as string,
+                    desc: fd.get("desc") as string,
+                    iconName: fd.get("iconName") as string,
+                    color: fd.get("color") as string,
+                    order: Number(fd.get("order"))
+                  };
+                  if (editingService?.id) {
+                    await updateDoc(doc(db, "services", editingService.id), data);
+                    setEditingService(null);
+                  } else {
+                    await addDoc(collection(db, "services"), data);
+                  }
+                  (e.target as any).reset();
+                }} className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl">
+                   <input required name="title" placeholder="Title" defaultValue={editingService?.title} className="p-3 rounded-xl border border-gray-200"/>
+                   <input required name="iconName" placeholder="Icon (Zap, Lightbulb...)" defaultValue={editingService?.iconName} className="p-3 rounded-xl border border-gray-200"/>
+                   <input required name="desc" placeholder="Desc" defaultValue={editingService?.desc} className="col-span-2 p-3 rounded-xl border border-gray-200"/>
+                   <input required name="color" placeholder="Color Classes" defaultValue={editingService?.color} className="p-3 rounded-xl border border-gray-200"/>
+                   <input required name="order" type="number" placeholder="Order" defaultValue={editingService?.order} className="p-3 rounded-xl border border-gray-200"/>
+                   <button type="submit" className="col-span-2 bg-gray-900 text-white p-4 rounded-xl font-black uppercase tracking-widest">
+                     {editingService ? "Save" : "Add Service"}
+                   </button>
+                </form>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {services.map(s => (
+                    <div key={s.id} className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center">
+                       <div className="font-black text-sm">{s.title}</div>
+                       <div className="flex gap-2">
+                         <button onClick={() => setEditingService(s)} className="text-blue-500 p-2"><Edit2 className="w-4 h-4"/></button>
+                         <button onClick={() => handleDelete("services", s.id)} className="text-red-500 p-2"><Trash2 className="w-4 h-4"/></button>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+             </div>
+           )}
+
+           {activeTab === "settings" && (
+             <form onSubmit={async (e) => {
+               e.preventDefault();
+               const fd = new FormData(e.currentTarget);
+               const data = Object.fromEntries(fd.entries());
+               await updateDoc(doc(db, "config", "general"), data);
+               alert("Updated!");
+             }} className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <input name="phone" placeholder="Phone" defaultValue={settings?.phone} className="p-4 bg-gray-50 rounded-2xl"/>
+                  <input name="email" placeholder="Email" defaultValue={settings?.email} className="p-4 bg-gray-50 rounded-2xl"/>
+                </div>
+                <button className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase">Save All Settings</button>
+             </form>
+           )}
+         </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdminView, setIsAdminView] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAdminLogin = async () => {
+    if (user) {
+      if (user.email === "td4156828@gmail.com") {
+        setIsAdminView(true);
+      } else {
+        alert("Unauthorized access attempt.");
+      }
+      return;
+    }
+    const provider = new GoogleAuthProvider();
+    try {
+      const res = await signInWithPopup(auth, provider);
+      if (res.user.email === "td4156828@gmail.com") {
+        setIsAdminView(true);
+      } else {
+        alert("This account is not authorized.");
+        await signOut(auth);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (loading && !isAdminView) {
+    return (
+      <AnimatePresence>
+        <SplashScreen key="splash" onComplete={() => setLoading(false)} />
+      </AnimatePresence>
+    );
+  }
+
+  if (isAdminView && user) {
+    return <AdminPanel user={user} onExit={() => setIsAdminView(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-white font-sans selection:bg-yellow-100 selection:text-gray-900 scroll-smooth">
-      <AnimatePresence mode="wait">
-        {loading && <SplashScreen key="splash" onComplete={() => setLoading(false)} />}
-      </AnimatePresence>
-      
-      {!loading && (
-        <motion.div
-          key="main-content"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Navbar />
-          <main>
-            <Hero />
-            <Services />
-            <Process />
-            <WhyUs />
-            <FAQ />
-            <ContactForm />
-          </main>
-          <Footer />
-          <LiveSupport />
-        </motion.div>
-      )}
+      <motion.div
+        key="main-content"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Navbar />
+        <main>
+          <Hero />
+          <Services />
+          <Process />
+          <WhyUs />
+          <FAQ />
+          <ContactForm />
+        </main>
+        <Footer onAdminLogin={handleAdminLogin} />
+        <LiveSupport />
+      </motion.div>
     </div>
   );
 }

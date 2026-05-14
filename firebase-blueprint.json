@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "service": {
+      "title": "Service",
+      "description": "Electrical service offered by RT VoltCare",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the service" },
+        "desc": { "type": "string", "description": "Description of the service" },
+        "iconName": { "type": "string", "description": "Lucide icon name" },
+        "color": { "type": "string", "description": "Tailwind color classes" },
+        "order": { "type": "number", "description": "Display order" }
+      },
+      "required": ["title", "desc", "iconName", "color", "order"]
+    },
+    "faq": {
+      "title": "FAQ",
+      "description": "Frequently Asked Question",
+      "type": "object",
+      "properties": {
+        "q": { "type": "string", "description": "The question" },
+        "a": { "type": "string", "description": "The answer" },
+        "order": { "type": "number", "description": "Display order" }
+      },
+      "required": ["q", "a", "order"]
+    },
+    "inquiry": {
+      "title": "Inquiry",
+      "description": "Contact form submission",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "message", "createdAt"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "General application settings",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "location": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "services": {
+      "schema": "service",
+      "description": "Collection of electrical services"
+    },
+    "faqs": {
+      "schema": "faq",
+      "description": "Collection of FAQs"
+    },
+    "inquiries": {
+      "schema": "inquiry",
+      "description": "Customer inquiries"
+    },
+    "config": {
+      "schema": "settings",
+      "description": "App configuration"
+    }
+  }
+}
