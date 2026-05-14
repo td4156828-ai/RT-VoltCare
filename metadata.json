@@ -1,0 +1,6 @@
+{
+  "name": "RT VoltCare",
+  "description": "Professional electrical services in Barasat and Madhyamgram. Reliable, fast, and affordable electrical solutions for your home and business.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
