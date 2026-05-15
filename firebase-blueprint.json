@@ -46,6 +46,22 @@
         "whatsapp": { "type": "string" },
         "location": { "type": "string" }
       }
+    },
+    "booking": {
+      "title": "Booking",
+      "description": "Electrician booking registration",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "phone", "location", "serviceType", "date", "createdAt"]
     }
   },
   "firestore": {
@@ -64,6 +80,10 @@
     "config": {
       "schema": "settings",
       "description": "App configuration"
+    },
+    "bookings": {
+      "schema": "booking",
+      "description": "Customer electrician bookings"
     }
   }
 }

@@ -6,7 +6,6 @@ import {
   Wrench, 
   ShieldCheck, 
   PhoneCall, 
-  Clock, 
   Menu, 
   X,
   MapPin,
@@ -14,33 +13,23 @@ import {
   CheckCircle2,
   Hammer,
   MessageSquare,
-  LogIn,
-  LogOut,
-  Edit2,
-  Save,
-  Trash2,
-  Plus,
-  ArrowRight
+  ArrowRight,
+  Calendar,
+  Clock,
+  Battery,
+  Cpu,
+  Plug,
+  SearchCheck,
+  Globe
 } from "lucide-react";
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut,
-  User 
-} from "firebase/auth";
 import { 
   collection, 
   addDoc, 
-  getDocs, 
   query, 
   orderBy, 
   doc, 
   serverTimestamp,
-  onSnapshot,
-  updateDoc,
-  deleteDoc,
-  writeBatch
+  onSnapshot
 } from "firebase/firestore";
 import { auth, db } from "./lib/firebase";
 
@@ -65,7 +54,20 @@ interface Inquiry {
   id: string;
   name: string;
   phone: string;
+  location: string;
   message: string;
+  createdAt: any;
+}
+
+interface Booking {
+  id?: string;
+  name: string;
+  phone: string;
+  location: string;
+  serviceType: string;
+  date: string;
+  time: string;
+  description: string;
   createdAt: any;
 }
 
@@ -117,6 +119,12 @@ const getIcon = (name: string) => {
     case "ShieldCheck": return <ShieldCheck className="w-6 h-6" />;
     case "CheckCircle2": return <CheckCircle2 className="w-6 h-6" />;
     case "MapPin": return <MapPin className="w-6 h-6" />;
+    case "Battery": return <Battery className="w-6 h-6" />;
+    case "Cpu": return <Cpu className="w-6 h-6" />;
+    case "Plug": return <Plug className="w-6 h-6" />;
+    case "SearchCheck": return <SearchCheck className="w-6 h-6" />;
+    case "Globe": return <Globe className="w-6 h-6" />;
+    case "Hammer": return <Hammer className="w-6 h-6" />;
     default: return <Zap className="w-6 h-6" />;
   }
 };
@@ -221,7 +229,7 @@ const Navbar = () => {
   const navLinks = [
     { name: "Home", href: "#" },
     { name: "Services", href: "#services" },
-    { name: "Process", href: "#process" },
+    { name: "Book Now", href: "#booking" },
     { name: "Contact", href: "#contact" },
   ];
 
@@ -358,13 +366,13 @@ const Hero = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-12">
-              <a href={`tel:+91${config.phone}`} className="group px-8 py-5 bg-yellow-400 text-gray-900 rounded-xl font-black text-lg hover:bg-yellow-500 transition-all text-center flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(250,204,21,0.3)]">
-                CALL {config.phone}
-                <PhoneCall className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <a href="#booking" className="group px-8 py-5 bg-yellow-400 text-gray-900 rounded-xl font-black text-lg hover:bg-yellow-500 transition-all text-center flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(250,204,21,0.3)]">
+                BOOK ELECTRICIAN
+                <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </a>
-              <a href={`https://wa.me/91${config.whatsapp}`} target="_blank" rel="noreferrer" className="px-8 py-5 bg-transparent text-white border-2 border-white/20 rounded-xl font-bold text-lg hover:bg-white hover:text-gray-900 transition-all text-center flex items-center justify-center gap-3">
-                WhatsApp Us
-                <MessageSquare className="w-5 h-5 text-yellow-400" />
+              <a href={`tel:+91${config.phone}`} className="px-8 py-5 bg-transparent text-white border-2 border-white/20 rounded-xl font-bold text-lg hover:bg-white hover:text-gray-900 transition-all text-center flex items-center justify-center gap-3">
+                Call {config.phone}
+                <PhoneCall className="w-5 h-5 text-yellow-400" />
               </a>
             </div>
 
@@ -496,7 +504,7 @@ const Services = () => {
     const q = query(collection(db, "services"), orderBy("order", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service))
-        .filter(s => s.title && s.desc); // Filter out empty/broken records
+        .filter(s => s.title && s.desc && !s.title.toUpperCase().includes("AI")); // Filter out AI options
 
       // Deduplicate by title to prevent mess
       const unique: Service[] = [];
@@ -511,14 +519,14 @@ const Services = () => {
       } else {
         // High-quality default services if empty
         setServices([
-          { title: "Smart Board Installation", desc: "Digital & Modern Switchboard setup with modular safety.", iconName: "Zap", color: "bg-yellow-400/10 text-yellow-500", order: 1 },
+          { title: "Smart Board Installation", desc: "Digital & Modern Switchboard setup with modular safety.", iconName: "Cpu", color: "bg-yellow-400/10 text-yellow-500", order: 1 },
           { title: "MCB & Safety Setup", desc: "Industrial standard circuit protection for your residence.", iconName: "ShieldCheck", color: "bg-blue-400/10 text-blue-500", order: 2 },
-          { title: "Premium House Wiring", desc: "Concealed or open wiring using fire-resistant wires.", iconName: "Zap", color: "bg-green-400/10 text-green-500", order: 3 },
-          { title: "Quick Fault Repair", desc: "Expert detection of hidden electrical leaks and short circuits.", iconName: "Wrench", color: "bg-red-400/10 text-red-500", order: 4 },
+          { title: "Premium House Wiring", desc: "Concealed or open wiring using fire-resistant wires.", iconName: "Plug", color: "bg-green-400/10 text-green-500", order: 3 },
+          { title: "Quick Fault Repair", desc: "Expert detection of hidden electrical leaks and short circuits.", iconName: "SearchCheck", color: "bg-red-400/10 text-red-500", order: 4 },
           { title: "Designer Light Setup", desc: "Installation of Chandeliers, Profile Lights, and Accent lighting.", iconName: "Lightbulb", color: "bg-purple-400/10 text-purple-500", order: 5 },
           { title: "Appliance Wiring", desc: "Dedicated heavy lines for AC, Geyser, and Water Pumps.", iconName: "Hammer", color: "bg-amber-400/10 text-amber-500", order: 6 },
-          { title: "Inverter Setup", desc: "Home backup system installation with load optimization.", iconName: "Zap", color: "bg-orange-400/10 text-orange-500", order: 7 },
-          { title: "Earthing Solutions", desc: "Proper house earthing to ensure equipment longevity.", iconName: "ShieldCheck", color: "bg-teal-400/10 text-teal-500", order: 8 }
+          { title: "Inverter Setup", desc: "Home backup system installation with load optimization.", iconName: "Battery", color: "bg-orange-400/10 text-orange-500", order: 7 },
+          { title: "Earthing Solutions", desc: "Proper house earthing to ensure equipment longevity.", iconName: "Globe", color: "bg-teal-400/10 text-teal-500", order: 8 }
         ]);
       }
       setLoading(false);
@@ -638,7 +646,7 @@ const WhyUs = () => {
   );
 };
 
-const ContactForm = () => {
+const BookingSection = () => {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<Settings>({
@@ -659,134 +667,170 @@ const ContactForm = () => {
     e.preventDefault();
     setLoading(true);
     const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
-    const message = formData.get("message") as string;
+    const fd = new FormData(form);
+    
+    const data = {
+      name: fd.get("name") as string,
+      phone: fd.get("phone") as string,
+      location: fd.get("location") as string,
+      serviceType: fd.get("serviceType") as string,
+      date: fd.get("date") as string,
+      time: fd.get("time") as string,
+      description: fd.get("description") as string,
+      createdAt: serverTimestamp()
+    };
 
     try {
-      await addDoc(collection(db, "inquiries"), {
-        name,
-        phone,
-        message,
-        createdAt: serverTimestamp()
-      });
+      await addDoc(collection(db, "bookings"), data);
+      
+      const whatsappNumber = config.whatsapp || "8013026363";
+      const cleanNumber = whatsappNumber.replace(/\D/g, "");
+      const fullNumber = cleanNumber.startsWith("91") ? cleanNumber : `91${cleanNumber}`;
+
+      const whatsappMsg = encodeURIComponent(
+        `*⚡ ELECTRICIAN BOOKING REQUEST*\n` +
+        `-----------------------\n` +
+        `👤 *Name:* ${data.name}\n` +
+        `📞 *Phone:* ${data.phone}\n` +
+        `📍 *Location:* ${data.location}\n` +
+        `🛠️ *Service:* ${data.serviceType}\n` +
+        `📅 *Date:* ${data.date}\n` +
+        `⏰ *Time:* ${data.time}\n` +
+        `📝 *Details:* ${data.description}\n` +
+        `-----------------------\n` +
+        `Sent via RT VoltCare Booking Portal`
+      );
+
+      const whatsappUrl = `https://wa.me/${fullNumber}?text=${whatsappMsg}`;
       setSubmitted(true);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, "inquiries");
+      setTimeout(() => window.open(whatsappUrl, "_blank"), 500);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, "bookings");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section id="contact" className="py-24 bg-white relative">
+    <section id="booking" className="py-24 bg-gray-50 border-y border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto bg-gray-900 rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row relative">
-          <div className="lg:w-5/12 bg-yellow-400 p-12 text-gray-900 relative overflow-hidden">
-             <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-white/20 rounded-full blur-2xl" />
-            <h2 className="text-4xl font-black mb-8 relative z-10 uppercase italic">Contact Us</h2>
-            <p className="text-gray-900/70 mb-12 text-lg font-bold relative z-10 leading-tight uppercase tracking-wider">
-              We Care For Your Power. <br />Available 24/7 for you.
+        <div className="flex flex-col lg:flex-row gap-16 items-start">
+          <div className="lg:w-1/3">
+            <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6 uppercase italic leading-none">
+              Book Your <span className="text-amber-600">Expert</span> Electrician
+            </h2>
+            <p className="text-gray-500 font-medium mb-8">
+              Schedule a visit today. Quick response, professional service, and affordable rates guaranteed.
             </p>
-            
-            <div className="space-y-8 relative z-10">
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-gray-900 text-yellow-400 rounded-2xl flex items-center justify-center shadow-lg">
-                  <PhoneCall className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Main Call</div>
-                  <div className="font-black text-2xl tracking-tighter">{config.phone}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-gray-900 text-yellow-400 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Mail className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Email Address</div>
-                  <div className="font-black text-xl tracking-tighter truncate max-w-[200px]">{config.email}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-gray-900 text-yellow-400 rounded-2xl flex items-center justify-center shadow-lg">
-                  <MessageSquare className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">WhatsApp</div>
-                  <a href={`https://wa.me/91${config.whatsapp}`} target="_blank" rel="noreferrer" className="font-black text-2xl tracking-tighter hover:text-gray-900 transition-colors">Click to Chat</a>
-                </div>
-              </div>
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-gray-900 text-yellow-400 rounded-2xl flex items-center justify-center shadow-lg">
-                  <MapPin className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-gray-900/60 text-xs font-black uppercase tracking-widest">Location</div>
-                  <div className="font-black text-lg leading-none uppercase tracking-tighter">{config.location}</div>
-                </div>
-              </div>
+            <div className="space-y-4">
+               {[
+                 { t: "Fast Service", d: "Emergency response within 60 mins." },
+                 { t: "Certified Pro", d: "Experienced & background checked." },
+                 { t: "Fair Price", d: "No hidden costs, transparent billing." }
+               ].map((item, i) => (
+                 <div key={i} className="flex gap-4 items-start bg-white p-5 rounded-2xl border border-gray-200">
+                    <div className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shrink-0">
+                       <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-black uppercase text-xs tracking-widest text-gray-900">{item.t}</h4>
+                      <p className="text-gray-500 text-sm font-medium">{item.d}</p>
+                    </div>
+                 </div>
+               ))}
             </div>
           </div>
 
-          <div className="lg:w-7/12 p-12 bg-white text-gray-900">
+          <div className="lg:w-2/3 w-full">
             {!submitted ? (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Full Name</label>
-                  <input 
-                    required
-                    name="name"
-                    type="text" 
-                    placeholder="Enter your name"
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none text-lg font-medium"
-                  />
+              <form onSubmit={handleSubmit} className="bg-white p-8 sm:p-12 rounded-[3rem] border border-gray-100 shadow-xl grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                   <h3 className="text-xl font-black uppercase italic text-gray-900 mb-2">Booking Details</h3>
+                   <div className="w-12 h-1 bg-yellow-400 rounded-full" />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Phone Number</label>
-                  <input 
-                    required
-                    name="phone"
-                    type="tel" 
-                    placeholder="Enter your phone number"
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none text-lg font-medium"
-                  />
+                
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Customer Name</label>
+                  <input required name="name" placeholder="John Doe" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold"/>
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Work Details</label>
-                  <textarea 
-                    rows={4}
-                    name="message"
-                    required
-                    placeholder="Describe your requirements..."
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all outline-none resize-none text-lg font-medium"
-                  ></textarea>
+                
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Phone Number</label>
+                  <input required name="phone" placeholder="91XXXXXXXXX" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold"/>
                 </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Service Location (Full Address)</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input required name="location" placeholder="Street, Area, Landmark" className="w-full pl-12 p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold"/>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Service Category</label>
+                  <select name="serviceType" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold">
+                    <option>Standard House Work</option>
+                    <option>Smart Board / Switch Setup</option>
+                    <option>Inverter / Battery Setup</option>
+                    <option>Fault Detection & Repair</option>
+                    <option>Commercial / Heavy Work</option>
+                    <option>Other Electrical Task</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Preferred Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input required name="date" type="date" className="w-full pl-12 p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold"/>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Preferred Time</label>
+                  <div className="relative">
+                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input required name="time" type="time" className="w-full pl-12 p-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold"/>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Work Description / Issues</label>
+                  <textarea required name="description" rows={3} placeholder="Please describe what needs to be fixed..." className="w-full p-5 bg-gray-50 rounded-3xl border border-gray-100 outline-none focus:ring-4 focus:ring-yellow-400/10 focus:border-yellow-400 transition-all font-bold resize-none"/>
+                </div>
+
                 <button 
                   disabled={loading}
-                  className="group w-full py-6 bg-gray-900 text-white rounded-2xl font-black text-xl hover:bg-amber-600 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                  className="md:col-span-2 py-6 bg-gray-900 text-yellow-400 rounded-[2rem] font-black text-xl hover:bg-gray-800 transition-all shadow-2xl flex items-center justify-center gap-4 group active:scale-[0.98] disabled:opacity-50"
                 >
-                  {loading ? "Sending..." : "Send Message"}
-                  <Zap className="w-6 h-6 group-hover:fill-current" />
+                  {loading ? "Processing..." : "CONFIRM BOOKING"}
+                  <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
                 </button>
               </form>
             ) : (
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="h-full flex flex-col items-center justify-center text-center py-12"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white p-16 rounded-[4rem] border border-gray-100 shadow-2xl text-center flex flex-col items-center"
               >
-                <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                  <CheckCircle2 className="w-12 h-12" />
+                <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                   <CheckCircle2 className="w-12 h-12" />
                 </div>
-                <h3 className="text-3xl font-black text-gray-900 mb-3 tracking-tight">Message Sent Successfully!</h3>
-                <p className="text-gray-500 text-lg font-medium max-w-sm">We have received your application. One of our experts will contact you today.</p>
+                <h3 className="text-3xl font-black text-gray-900 mb-4 tracking-tighter italic uppercase">Booking Received!</h3>
+                <p className="text-gray-500 font-bold max-w-sm mb-10 leading-loose uppercase text-xs tracking-widest">
+                  Redirecting to WhatsApp to coordinate your appointment. Please stay online.
+                </p>
+                <div className="flex gap-2 mb-10">
+                   {[0, 1, 2].map(i => (
+                     <div key={i} className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+                   ))}
+                </div>
                 <button 
                   onClick={() => setSubmitted(false)}
-                  className="mt-10 px-8 py-3 ring-2 ring-gray-900 text-gray-900 font-bold rounded-xl hover:bg-gray-900 hover:text-white transition-all"
+                  className="px-10 py-4 border-2 border-gray-900 text-gray-900 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-900 hover:text-white transition-all"
                 >
-                  Send another message
+                  Make New Booking
                 </button>
               </motion.div>
             )}
@@ -797,7 +841,7 @@ const ContactForm = () => {
   );
 };
 
-const Footer = ({ onAdminLogin }: { onAdminLogin: () => void }) => {
+const Footer = () => {
   const [config, setConfig] = useState({
     location: "Barasat, Madhyamgram, North 24 Parganas, WB."
   });
@@ -840,12 +884,6 @@ const Footer = ({ onAdminLogin }: { onAdminLogin: () => void }) => {
             <p className="text-gray-600 text-[10px] font-black uppercase tracking-[0.4em]">
             © 2026 RT VOLTCARE. DESIGNED FOR POWER.
             </p>
-            <button 
-              onClick={onAdminLogin}
-              className="px-3 py-1 text-[8px] font-black uppercase tracking-widest text-gray-300 hover:text-white transition-all opacity-10 hover:opacity-100"
-            >
-              Admin Access
-            </button>
         </div>
       </div>
     </footer>
@@ -1072,222 +1110,15 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void; key?: string }) 
     );
 };
 
-const AdminPanel = ({ user, onExit }: { user: User; onExit: () => void }) => {
-  const [activeTab, setActiveTab] = useState<"services" | "faqs" | "inquiries" | "settings">("inquiries");
-  const [services, setServices] = useState<Service[]>([]);
-  const [faqs, setFaqs] = useState<FAQItem[]>([]);
-  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [editingService, setEditingService] = useState<Service | null>(null);
-  const [editingFaq, setEditingFaq] = useState<FAQItem | null>(null);
-  const isAdmin = user.email?.trim().toLowerCase() === "td4156828@gmail.com";
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    
-    const unsS = onSnapshot(query(collection(db, "services"), orderBy("order", "asc")), (s) => 
-      setServices(s.docs.map(d => ({ id: d.id, ...d.data() } as Service)))
-    );
-    const unsF = onSnapshot(query(collection(db, "faqs"), orderBy("order", "asc")), (s) => 
-      setFaqs(s.docs.map(d => ({ id: d.id, ...d.data() } as FAQItem)))
-    );
-    const unsI = onSnapshot(query(collection(db, "inquiries"), orderBy("createdAt", "desc")), (s) => 
-      setInquiries(s.docs.map(d => ({ id: d.id, ...d.data() } as Inquiry)))
-    );
-    const unsSet = onSnapshot(doc(db, "config", "general"), (doc) => {
-      if (doc.exists()) setSettings(doc.data() as Settings);
-    });
-
-    return () => { unsS(); unsF(); unsI(); unsSet(); };
-  }, [isAdmin]);
-
-  const handleDelete = async (coll: string, id: string | undefined) => {
-    if (!id) return;
-    if (!window.confirm("Confirm Delete?")) return;
-    try {
-      await deleteDoc(doc(db, coll, id));
-    } catch (e) {
-      alert("Error deleting item.");
-    }
-  };
-
-  const handleSeed = async () => {
-    if (!window.confirm("Restore defaults and wipe existing?")) return;
-    try {
-      const snaps = await getDocs(collection(db, "services"));
-      await Promise.all(snaps.docs.map(d => deleteDoc(d.ref)));
-
-      const defaults = [
-        { title: "Smart Board Installation", desc: "Digital & Modern Switchboard setup with modular safety.", iconName: "Zap", color: "bg-yellow-400/10 text-yellow-500", order: 1 },
-        { title: "MCB & Safety Setup", desc: "Industrial standard circuit protection for your residence.", iconName: "ShieldCheck", color: "bg-blue-400/10 text-blue-500", order: 2 },
-        { title: "Premium House Wiring", desc: "Concealed or open wiring using fire-resistant wires.", iconName: "Zap", color: "bg-green-400/10 text-green-500", order: 3 },
-        { title: "Quick Fault Repair", desc: "Expert detection of hidden electrical leaks and short circuits.", iconName: "Wrench", color: "bg-red-400/10 text-red-500", order: 4 },
-        { title: "Designer Light Setup", desc: "Installation of Chandeliers, Profile Lights, and Accent lighting.", iconName: "Lightbulb", color: "bg-purple-400/10 text-purple-500", order: 5 },
-        { title: "Appliance Wiring", desc: "Dedicated heavy lines for AC, Geyser, and Water Pumps.", iconName: "Hammer", color: "bg-amber-400/10 text-amber-500", order: 6 },
-        { title: "Inverter Setup", desc: "Home backup system installation with load optimization.", iconName: "Zap", color: "bg-orange-400/10 text-orange-500", order: 7 },
-        { title: "Earthing Solutions", desc: "Proper house earthing to ensure equipment longevity.", iconName: "ShieldCheck", color: "bg-teal-400/10 text-teal-500", order: 8 }
-      ];
-
-      for (const d of defaults) {
-        await addDoc(collection(db, "services"), d);
-      }
-      alert("Services Restored!");
-    } catch (e) {
-      alert("Seed failed.");
-    }
-  };
-
-  if (!isAdmin) return <div className="p-20 text-center font-black">ACCESS DENIED - {user.email}</div>;
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-gray-900 py-4 px-8 flex justify-between items-center text-white">
-         <div className="font-black uppercase italic text-xl">Admin <span className="text-yellow-400">VoltCare</span></div>
-         <button onClick={onExit} className="px-4 py-2 border border-white/20 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10">Exit Panel</button>
-      </nav>
-
-      <div className="flex-1 max-w-7xl mx-auto w-full p-8">
-         <div className="flex gap-4 mb-8">
-            {["inquiries", "services", "faqs", "settings"].map(t => (
-              <button 
-                key={t}
-                onClick={() => setActiveTab(t as any)}
-                className={`px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === t ? "bg-yellow-400 text-gray-900" : "bg-white text-gray-400 border border-gray-100"}`}
-              >
-                {t}
-              </button>
-            ))}
-         </div>
-
-         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
-           {activeTab === "inquiries" && (
-             <div className="space-y-4">
-                {inquiries.map(i => (
-                  <div key={i.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between">
-                    <div>
-                      <div className="font-black text-gray-900 mb-1">{i.name} • {i.phone}</div>
-                      <p className="text-gray-600">{i.message}</p>
-                    </div>
-                    <button onClick={() => handleDelete("inquiries", i.id)} className="text-red-500 p-2"><Trash2 className="w-5 h-5"/></button>
-                  </div>
-                ))}
-             </div>
-           )}
-
-           {activeTab === "services" && (
-             <div>
-                <div className="flex justify-end mb-6">
-                  <button onClick={handleSeed} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest">Restore All Clean</button>
-                </div>
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  const data = {
-                    title: fd.get("title") as string,
-                    desc: fd.get("desc") as string,
-                    iconName: fd.get("iconName") as string,
-                    color: fd.get("color") as string,
-                    order: Number(fd.get("order"))
-                  };
-                  if (editingService?.id) {
-                    await updateDoc(doc(db, "services", editingService.id), data);
-                    setEditingService(null);
-                  } else {
-                    await addDoc(collection(db, "services"), data);
-                  }
-                  (e.target as any).reset();
-                }} className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-6 rounded-2xl">
-                   <input required name="title" placeholder="Title" defaultValue={editingService?.title} className="p-3 rounded-xl border border-gray-200"/>
-                   <input required name="iconName" placeholder="Icon (Zap, Lightbulb...)" defaultValue={editingService?.iconName} className="p-3 rounded-xl border border-gray-200"/>
-                   <input required name="desc" placeholder="Desc" defaultValue={editingService?.desc} className="col-span-2 p-3 rounded-xl border border-gray-200"/>
-                   <input required name="color" placeholder="Color Classes" defaultValue={editingService?.color} className="p-3 rounded-xl border border-gray-200"/>
-                   <input required name="order" type="number" placeholder="Order" defaultValue={editingService?.order} className="p-3 rounded-xl border border-gray-200"/>
-                   <button type="submit" className="col-span-2 bg-gray-900 text-white p-4 rounded-xl font-black uppercase tracking-widest">
-                     {editingService ? "Save" : "Add Service"}
-                   </button>
-                </form>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {services.map(s => (
-                    <div key={s.id} className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center">
-                       <div className="font-black text-sm">{s.title}</div>
-                       <div className="flex gap-2">
-                         <button onClick={() => setEditingService(s)} className="text-blue-500 p-2"><Edit2 className="w-4 h-4"/></button>
-                         <button onClick={() => handleDelete("services", s.id)} className="text-red-500 p-2"><Trash2 className="w-4 h-4"/></button>
-                       </div>
-                    </div>
-                  ))}
-                </div>
-             </div>
-           )}
-
-           {activeTab === "settings" && (
-             <form onSubmit={async (e) => {
-               e.preventDefault();
-               const fd = new FormData(e.currentTarget);
-               const data = Object.fromEntries(fd.entries());
-               await updateDoc(doc(db, "config", "general"), data);
-               alert("Updated!");
-             }} className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <input name="phone" placeholder="Phone" defaultValue={settings?.phone} className="p-4 bg-gray-50 rounded-2xl"/>
-                  <input name="email" placeholder="Email" defaultValue={settings?.email} className="p-4 bg-gray-50 rounded-2xl"/>
-                </div>
-                <button className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase">Save All Settings</button>
-             </form>
-           )}
-         </div>
-      </div>
-    </div>
-  );
-};
-
 export default function App() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdminView, setIsAdminView] = useState(false);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
-  const handleAdminLogin = async () => {
-    if (user) {
-      if (user.email === "td4156828@gmail.com") {
-        setIsAdminView(true);
-      } else {
-        alert("Unauthorized access attempt.");
-      }
-      return;
-    }
-    const provider = new GoogleAuthProvider();
-    try {
-      const res = await signInWithPopup(auth, provider);
-      if (res.user.email === "td4156828@gmail.com") {
-        setIsAdminView(true);
-      } else {
-        alert("This account is not authorized.");
-        await signOut(auth);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  if (loading && !isAdminView) {
+  if (loading) {
     return (
       <AnimatePresence>
         <SplashScreen key="splash" onComplete={() => setLoading(false)} />
       </AnimatePresence>
     );
-  }
-
-  if (isAdminView && user) {
-    return <AdminPanel user={user} onExit={() => setIsAdminView(false)} />;
   }
 
   return (
@@ -1304,10 +1135,10 @@ export default function App() {
           <Services />
           <Process />
           <WhyUs />
+          <BookingSection />
           <FAQ />
-          <ContactForm />
         </main>
-        <Footer onAdminLogin={handleAdminLogin} />
+        <Footer />
         <LiveSupport />
       </motion.div>
     </div>

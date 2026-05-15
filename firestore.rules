@@ -55,10 +55,11 @@ service cloud.firestore {
     // 3. Inquiries
     match /inquiries/{inquiryId} {
       function isValidInquiry(data) {
-        return data.keys().hasAll(['name', 'phone', 'message', 'createdAt'])
-          && data.keys().size() == 4
+        return data.keys().hasAll(['name', 'phone', 'location', 'message', 'createdAt'])
+          && data.keys().size() == 5
           && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
           && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 20
+          && data.location is string && data.location.size() >= 2 && data.location.size() <= 200
           && data.message is string && data.message.size() >= 5 && data.message.size() <= 1000
           && data.createdAt == request.time;
       }
@@ -71,6 +72,22 @@ service cloud.firestore {
     match /config/{configId} {
       allow list, get: if true;
       allow write: if isAdmin();
+    }
+
+    // 5. Bookings
+    match /bookings/{bookingId} {
+      function isValidBooking(data) {
+        return data.keys().hasAll(['name', 'phone', 'location', 'serviceType', 'date', 'createdAt'])
+          && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+          && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 20
+          && data.location is string && data.location.size() >= 2 && data.location.size() <= 200
+          && data.serviceType is string
+          && data.date is string
+          && data.createdAt == request.time;
+      }
+
+      allow create: if isValidId(bookingId) && isValidBooking(incoming());
+      allow list, get, delete: if isAdmin();
     }
   }
 }
